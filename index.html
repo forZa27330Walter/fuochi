@@ -71,11 +71,10 @@
                 this.friction = friction; this.gravity = gravity;
                 this.size = size;
                 this.isLaunch = isLaunch;
-                // Scia di lancio resa più rapida a sparire (0.08 invece di 0.04)
                 this.decay = (isLaunch ? 0.08 : 0.006 + Math.random() * 0.01) / lifeMult;
             }
             draw() {
-                ctx.globalAlpha = this.alpha;
+                ctx.globalAlpha = Math.max(0, this.alpha); // Evita alfa negativi
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, 7);
@@ -114,7 +113,6 @@
                 ctx.arc(this.x, this.y, 1.1 * this.depthScale, 0, 7);
                 ctx.fill();
 
-                // Generazione scia ridotta (probabilità 0.1 invece di 0.2)
                 if (Math.random() > 0.9) {
                     particles.push(new Particle(this.x, this.y, this.colorLaunch, {x:0,y:0}, 0.98, 0.01, 0.4, 0.5, true));
                 }
@@ -170,7 +168,19 @@
                 const p = particles[i];
                 p.update();
                 p.draw();
-                if (p.alpha <= 0) particles.splice(i, 1);
+                
+                // Gestione rigorosa della rimozione per evitare ombre
+                if (p.alpha <= 0) {
+                    // Cancella forzatamente il punto sullo schermo
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = '#010206'; // Colore sfondo
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size + 1, 0, 7); // Leggermente più grande per sicurezza
+                    ctx.fill();
+                    
+                    // Rimuovi dall'array
+                    particles.splice(i, 1);
+                }
             }
 
             if (particles.length > 2000) particles.splice(0, particles.length - 2000);
