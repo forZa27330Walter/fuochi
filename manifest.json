@@ -1,0 +1,22 @@
+{
+  "name": "Pro Fireworks Display",
+  "short_name": "Fireworks",
+  "description": "Spettacolo pirotecnico professionale interattivo.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#010206",
+  "theme_color": "#010206",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192x192/010206/ff8c00?text=FW",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://via.placeholder.com/512x512/010206/ff8c00?text=Fireworks",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
