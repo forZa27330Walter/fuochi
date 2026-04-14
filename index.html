@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Professional Fireworks PWA</title>
+    <title>Pro Fireworks PWA - Clean Decay</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#010206">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -71,14 +71,20 @@
                 this.friction = friction; this.gravity = gravity;
                 this.size = size;
                 this.isLaunch = isLaunch;
-                this.decay = (isLaunch ? 0.08 : 0.006 + Math.random() * 0.01) / lifeMult;
+                // Decadimento leggermente più lento per visibilità, ma taglio netto alfa
+                this.decay = (isLaunch ? 0.08 : 0.005 + Math.random() * 0.008) / lifeMult;
             }
             draw() {
-                ctx.globalAlpha = Math.max(0, this.alpha); // Evita alfa negativi
+                // SOLUZIONE 1: Taglio rigido dell'alfa invisibile
+                if (this.alpha < 0.05) return; 
+
+                ctx.save();
+                ctx.globalAlpha = Math.min(1, Math.max(0, this.alpha)); 
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, 7);
                 ctx.fill();
+                ctx.restore();
             }
             update() {
                 this.vel.x *= this.friction; this.vel.y *= this.friction;
@@ -156,7 +162,8 @@
         let fireworks = [];
 
         function animate() {
-            ctx.fillStyle = 'rgba(1, 2, 6, 0.2)';
+            // SOLUZIONE 3: Pulizia semi-trasparente leggermente più forte
+            ctx.fillStyle = 'rgba(1, 2, 6, 0.25)'; 
             ctx.fillRect(0, 0, width, height);
 
             for (let i = fireworks.length - 1; i >= 0; i--) {
@@ -169,16 +176,15 @@
                 p.update();
                 p.draw();
                 
-                // Gestione rigorosa della rimozione per evitare ombre
-                if (p.alpha <= 0) {
-                    // Cancella forzatamente il punto sullo schermo
+                // SOLUZIONE 2: Gestione rigorosa e d'emergenza della rimozione
+                if (p.alpha < 0.02) {
+                    // Cancella forzatamente il punto sullo schermo disegnando nero
                     ctx.globalAlpha = 1;
-                    ctx.fillStyle = '#010206'; // Colore sfondo
+                    ctx.fillStyle = '#010206'; 
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size + 1, 0, 7); // Leggermente più grande per sicurezza
+                    ctx.arc(p.x, p.y, p.size + 1.5, 0, 7); 
                     ctx.fill();
                     
-                    // Rimuovi dall'array
                     particles.splice(i, 1);
                 }
             }
