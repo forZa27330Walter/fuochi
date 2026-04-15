@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<link rel=“manifest" href="/manifesto.json"> 
+<link rel="manifest" href="/manifesto.json"> 
 <script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js')
@@ -15,30 +15,48 @@ if ('serviceWorker' in navigator) {
 </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pro Fireworks PWA - Clean Decay</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#010206">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Ultimate Fireworks - Audio Fixed</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #010206; touch-action: none; }
-        canvas { display: block; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #01020a; touch-action: none; }
+        canvas { display: block; cursor: crosshair; }
         #signature {
             position: absolute; bottom: 15px; left: 15px;
-            font-family: sans-serif; font-size: 10px; font-weight: bold;
-            color: #ff8c00; text-decoration: none; opacity: 0.3; z-index: 10;
+            font-family: 'Arial', sans-serif;
+            font-size: 13px; font-weight: bold;
+            color: #ff8c00; text-decoration: none; 
+            opacity: 0.5; transition: opacity 0.3s;
+            z-index: 10;
         }
+        #signature:hover { opacity: 1; }
     </style>
 </head>
 <body>
+
     <canvas id="canvas"></canvas>
-    <a id="signature" href="mailto:allsatone@gmail.com">@Walter</a>
+    <a id="signature" href="mailto:allsatone@gmail.com?subject=App.%20Fireworks">@Walter</a>
 
     <script>
         const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d', { alpha: false });
+        const ctx = canvas.getContext('2d');
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // --- MOTORE AUDIO POTENZIATO CONTRO SATURAZIONE ---
+        const masterGain = audioCtx.createGain();
+        const limiter = audioCtx.createDynamicsCompressor();
+        
+        masterGain.gain.setValueAtTime(0.4, audioCtx.currentTime); // Gain ridotto per headroom
+        
+        limiter.threshold.setValueAtTime(-6, audioCtx.currentTime); // Limite più basso
+        limiter.knee.setValueAtTime(30, audioCtx.currentTime);
+        limiter.ratio.setValueAtTime(20, audioCtx.currentTime); // Compressione più aggressiva
+        limiter.attack.setValueAtTime(0.003, audioCtx.currentTime);
+        limiter.release.setValueAtTime(0.25, audioCtx.currentTime);
+        
+        masterGain.connect(limiter);
+        limiter.connect(audioCtx.destination);
+
         let width, height;
+        let isWhirlActive = false; 
 
         function resize() {
             width = canvas.width = window.innerWidth;
@@ -47,19 +65,41 @@ if ('serviceWorker' in navigator) {
         window.addEventListener('resize', resize);
         resize();
 
-        function playLaunchSound() {
+        function playLaunchSound(isFinal = false) {
+            if (audioCtx.state === 'suspended') return;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(45, audioCtx.currentTime); 
-            gain.gain.setValueAtTime(1.5, audioCtx.currentTime); 
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+            osc.frequency.setValueAtTime(isFinal ? 40 : 60, audioCtx.currentTime); 
+            gain.gain.setValueAtTime(isFinal ? 0.3 : 0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+            osc.connect(gain); gain.connect(masterGain);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        function playNaturalSizzle() {
+            if (audioCtx.state === 'suspended') return;
+            const duration = 0.6;
+            const bufferSize = audioCtx.sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(3000, audioCtx.currentTime);
+            filter.Q.setValueAtTime(5, audioCtx.currentTime);
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            noise.connect(filter); filter.connect(gain); gain.connect(masterGain);
+            noise.start();
         }
 
         function playExplosionSound(intensity) {
-            const bufferSize = audioCtx.sampleRate * 2;
+            if (audioCtx.state === 'suspended') return;
+            const bufferSize = audioCtx.sampleRate * 2.0;
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
@@ -68,153 +108,240 @@ if ('serviceWorker' in navigator) {
             const filter = audioCtx.createBiquadFilter();
             const gain = audioCtx.createGain();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(250 * intensity, audioCtx.currentTime);
-            filter.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 2.5);
-            gain.gain.setValueAtTime(intensity * 1.2, audioCtx.currentTime); 
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 3.0);
-            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            filter.frequency.setValueAtTime(600 * intensity, audioCtx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 1.2);
+            gain.gain.setValueAtTime(intensity * 0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+            noise.connect(filter); filter.connect(gain); gain.connect(masterGain);
             noise.start();
         }
 
+        // --- LOGICA PARTICELLE (Grafica Invariata) ---
         class Particle {
-            constructor(x, y, color, vel, friction, gravity, size, lifeMult, isLaunch = false) {
-                this.x = x; this.y = y; this.color = color;
-                this.vel = vel; this.alpha = 1;
-                this.friction = friction; this.gravity = gravity;
-                this.size = size;
-                this.isLaunch = isLaunch;
-                // Decadimento leggermente più lento per visibilità, ma taglio netto alfa
-                this.decay = (isLaunch ? 0.08 : 0.005 + Math.random() * 0.008) / lifeMult;
-            }
-            draw() {
-                // SOLUZIONE 1: Taglio rigido dell'alfa invisibile
-                if (this.alpha < 0.05) return; 
+            constructor(x, y, color, vel, friction = 0.97, gravity = 0.08, strobe = false, decayMult = 1, whirl = false) {
+                this.x = x; this.y = y; this.color = whirl ? "#ffffff" : color;
+                this.vel = vel;
+                this.alpha = 1;
+                this.decay = (0.006 + (Math.random() * 0.01)) * (whirl ? 0.45 : decayMult);
+                this.friction = friction;
+                this.gravity = gravity;
+                this.strobe = strobe;
+                this.whirl = whirl;
+                this.delay = whirl ? Math.random() * 80 : 0;
+                this.activated = false;
+                
+                this.angle = Math.random() * Math.PI * 2;
+                this.baseRotationSpeed = (0.1 + Math.random() * 0.3) * (Math.random() > 0.5 ? 1 : -1);
+                this.rotationSpeed = this.baseRotationSpeed;
+                this.whirlRadius = 1; 
+                this.baseWhirlExpansion = 0.5 + Math.random() * 2.5;
+                this.whirlExpansion = this.baseWhirlExpansion;
 
+                this.flashAlpha = 0; 
+                this.radius = whirl ? 0.8 : 1.4;
+            }
+
+            draw() {
+                if (this.delay > 0 || this.alpha <= 0.02) return;
+                if (this.flashAlpha > 0) {
+                    ctx.save(); ctx.globalAlpha = this.flashAlpha; ctx.fillStyle = "#ffffff";
+                    ctx.beginPath(); ctx.arc(this.x, this.y, 1.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore(); this.flashAlpha -= 0.4; 
+                }
+                if (this.strobe && Math.random() > 0.6 && this.alpha > 0.2) return;
                 ctx.save();
-                ctx.globalAlpha = Math.min(1, Math.max(0, this.alpha)); 
+                ctx.globalAlpha = this.alpha;
                 ctx.fillStyle = this.color;
+                ctx.shadowBlur = 5; 
+                ctx.shadowColor = this.color;
                 ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, 7);
+                const r = this.radius * (this.whirl ? (0.7 + this.alpha * 0.3) : 1);
+                ctx.arc(this.x, this.y, Math.max(0.1, r), 0, Math.PI * 2);
                 ctx.fill();
                 ctx.restore();
             }
+
             update() {
-                this.vel.x *= this.friction; this.vel.y *= this.friction;
-                this.vel.y += this.gravity;
-                this.x += this.vel.x; this.y += this.vel.y;
+                if (this.delay > 0) {
+                    this.x += this.vel.x * 0.3; this.y += this.vel.y * 0.3;
+                    this.delay--; return;
+                }
+                if (this.whirl && !this.activated) {
+                    playNaturalSizzle(); this.flashAlpha = 0.8; this.activated = true;
+                }
+                if (this.whirl) {
+                    this.rotationSpeed = this.baseRotationSpeed * (1 + (Math.random() - 0.5) * 0.6);
+                    this.angle += this.rotationSpeed;
+                    this.whirlExpansion *= (0.96 + Math.random() * 0.08); 
+                    this.whirlRadius += this.whirlExpansion; 
+                    this.vel.x += (Math.random() - 0.5) * 0.4;
+                    this.vel.y += (Math.random() - 0.5) * 0.4;
+                    this.x += Math.cos(this.angle) * (this.whirlRadius * 0.16) + this.vel.x;
+                    this.y += Math.sin(this.angle) * (this.whirlRadius * 0.16) + this.vel.y;
+                    this.vel.x *= this.friction; this.vel.y *= this.friction;
+                    this.y += this.gravity * 0.03;
+                    if(this.whirlRadius > 60) this.alpha -= 0.03;
+                } else {
+                    this.vel.x *= this.friction; this.vel.y *= this.friction;
+                    this.vel.y += this.gravity;
+                    this.x += this.vel.x; this.y += this.vel.y;
+                }
                 this.alpha -= this.decay;
             }
         }
 
         class Firework {
-            constructor(tx, ty, type, depthScale) {
-                this.depthScale = depthScale;
-                this.x = width / 2 + (Math.random() - 0.5) * (width * 0.6);
+            constructor(tx, ty, isSubShot = false, customHue = null, isFinal = false, forceEffect = null) {
+                this.x = isSubShot ? tx : Math.random() * (width * 0.8) + (width * 0.1);
                 this.y = height;
-                this.tx = tx; this.ty = Math.max(ty, height * 0.15);
-                this.type = type;
-                this.colorLaunch = '#F5F5F0';
-                const colors = ['#FFD700', '#FF1493', '#00FF00', '#00BFFF', '#FF4500', '#FF0000', '#EA00FF', '#00FFFF'];
-                this.colorBase = colors[Math.floor(Math.random() * colors.length)];
-                const angle = Math.atan2(this.ty - height, this.tx - this.x);
-                this.v = { x: Math.cos(angle) * (8 * depthScale), y: Math.sin(angle) * (8 * depthScale) };
+                this.tx = tx; this.ty = ty;
+                this.isFinal = isFinal;
+                this.forceEffect = forceEffect;
+                this.hue = customHue !== null ? customHue : Math.floor(Math.random() * 360);
+                const angle = Math.atan2(ty - height, tx - this.x);
+                const dist = Math.sqrt(Math.pow(tx - this.x, 2) + Math.pow(ty - height, 2));
+                const speed = Math.min(dist / 40, 22);
+                this.v = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed };
                 this.dead = false;
-                playLaunchSound();
+                this.particles = [];
+                if(!isSubShot) playLaunchSound(isFinal);
             }
+
             update() {
                 this.x += this.v.x; this.y += this.v.y;
-                this.v.y += 0.06 * this.depthScale;
-
-                ctx.globalAlpha = 1;
-                ctx.fillStyle = this.colorLaunch;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 1.1 * this.depthScale, 0, 7);
-                ctx.fill();
-
-                if (Math.random() > 0.9) {
-                    particles.push(new Particle(this.x, this.y, this.colorLaunch, {x:0,y:0}, 0.98, 0.01, 0.4, 0.5, true));
-                }
-
-                if (this.v.y >= -0.1 || this.y <= this.ty) {
-                    this.explode();
-                    this.dead = true;
-                }
+                ctx.fillStyle = `rgba(255, 255, 255, 0.3)`;
+                ctx.beginPath(); ctx.arc(this.x, this.y, 1.5, 0, Math.PI*2); ctx.fill();
+                if (this.v.y >= 0 || this.y <= this.ty) { this.explode(); this.dead = true; }
+                this.v.y += 0.12; 
             }
+
             explode() {
-                playExplosionSound(1.4);
-                let count = 110;
-                let friction = 0.95, gravity = 0.05, lifeMult = 1.0;
+                const effects = [
+                    'peony', 'peony', 'peony', 'chrysanthemum', 'chrysanthemum', 'willow', 'willow',
+                    'brocade', 'palm', 'crossette', 'dahlia', 'spider', 'strobe', 'strobe',
+                    'fish', 'waterfall', 'pistil', 'whirl'
+                ];
+                const effectType = this.forceEffect || (this.isFinal ? 'brocade' : effects[Math.floor(Math.random() * effects.length)]);
+                
+                if (effectType === 'whirl' && !this.forceEffect) {
+                    isWhirlActive = true; 
+                    const spawnWhirls = (count) => {
+                        if (count < 8) { 
+                            setTimeout(() => {
+                                fireworks.push(new Firework(
+                                    (width * 0.15) + Math.random() * (width * 0.7), 
+                                    (height * 0.1) + Math.random() * (height * 0.35), 
+                                    true, this.hue, false, 'whirl'
+                                ));
+                                spawnWhirls(count + 1);
+                            }, 650 + Math.random() * 300); 
+                        } else {
+                            setTimeout(() => { isWhirlActive = false; }, 3000);
+                        }
+                    };
+                    spawnWhirls(1); 
+                }
+
+                const count = this.isFinal ? 400 : 180 + Math.random() * 100;
+                playExplosionSound(this.isFinal ? 1.6 : 0.6 + Math.random() * 0.3);
 
                 for (let i = 0; i < count; i++) {
-                    let angle = Math.random() * Math.PI * 2;
-                    let speed = (Math.random() * 4 + 1) * this.depthScale;
-                    let pColor = this.colorBase;
+                    const angle = Math.random() * Math.PI * 2;
+                    let speed = Math.random() * 5 + 1; 
+                    if(this.isFinal) speed = Math.random() * 12 + 2;
+                    let friction = 0.96, gravity = 0.07, strobe = false, decayMult = 1, whirl = false;
+                    let hue = this.hue, brightness = 65;
 
-                    switch(this.type) {
-                        case 0: pColor = '#FFD700'; lifeMult = 2; gravity = 0.02; break;
-                        case 1: if (i % 2 === 0) { angle = (i/count)*Math.PI*2; speed = 5; } break;
-                        case 2: speed = i % 4 === 0 ? 6 : 2; break;
-                        case 3: angle = Math.PI + (Math.random()-0.5); gravity = 0.09; break;
-                        case 4: pColor = i % 2 === 0 ? '#ff0000' : '#ffffff'; break;
-                        case 5: speed = Math.random() * 8; friction = 0.9; break;
-                        case 6: lifeMult = 0.5; speed *= 1.5; break;
-                        case 7: pColor = '#00FF00'; gravity = 0.01; friction = 0.98; break;
-                        case 8: angle = (i/count)*Math.PI*2; speed = (i % 10 === 0) ? 7 : 1; break;
-                        case 9: pColor = '#00BFFF'; lifeMult = 3; gravity = 0.03; break;
+                    switch(effectType) {
+                        case 'whirl': whirl = true; speed = Math.random() * 3 + 4; decayMult = 0.5; break;
+                        case 'willow': gravity = 0.02; friction = 0.985; hue = 45; decayMult = 0.5; break; 
+                        case 'brocade': hue = 40; brightness = 80; friction = 0.985; gravity = 0.03; break;
+                        case 'palm': if (i % 20 === 0) speed = 8; else speed = Math.random() * 3.5; break; 
+                        case 'crossette': speed = i % 8 === 0 ? 7 : 2; break; 
+                        case 'strobe': strobe = true; break; 
+                        case 'waterfall': gravity = 0.22; friction = 0.99; decayMult = 0.6; break; 
+                        case 'pistil': if (i < 60) { hue = (this.hue + 180) % 360; speed = 2; } break; 
                     }
 
-                    particles.push(new Particle(this.x, this.y, pColor, {
+                    let color = `hsl(${hue}, 100%, ${brightness}%)`;
+                    this.particles.push(new Particle(this.x, this.y, color, {
                         x: Math.cos(angle) * speed, y: Math.sin(angle) * speed
-                    }, friction, gravity, 0.8 * this.depthScale, lifeMult));
+                    }, friction, gravity, strobe, decayMult, whirl));
                 }
             }
         }
 
-        let particles = [];
-        let fireworks = [];
+        let fireworks = [], particles = [];
+
+        function triggerFormat(type, x, y) {
+            if (isWhirlActive) return; 
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            switch(type) {
+                case 'final_explosion': 
+                    fireworks.push(new Firework(x, y, false, Math.floor(Math.random() * 360), true)); 
+                    break;
+                case 'battery': 
+                    let shots = 16; let batteryHue = Math.random() * 360;
+                    let bInt = setInterval(() => {
+                        if (isWhirlActive) return; 
+                        let targetX = (width * 0.2) + (Math.random() * width * 0.6);
+                        let targetY = (height * 0.1) + (Math.random() * height * 0.3);
+                        fireworks.push(new Firework(targetX, targetY, false, batteryHue));
+                        if (--shots <= 0) clearInterval(bInt);
+                    }, 180);
+                    break;
+                case 'roman_candle': 
+                    let rShots = 8;
+                    let rInt = setInterval(() => {
+                        if (isWhirlActive) return;
+                        fireworks.push(new Firework(x + (Math.random()-0.5)*100, y, true));
+                        if (--rShots <= 0) clearInterval(rInt);
+                    }, 300);
+                    break;
+                case 'fountain': 
+                    for(let i=0; i<80; i++) {
+                        setTimeout(() => {
+                            if (isWhirlActive) return;
+                            particles.push(new Particle(x, height, '#ffcc00', {x:(Math.random()-0.5)*4, y:-Math.random()*15 - 5}, 0.98, 0.25, false, 1.8));
+                        }, i*40);
+                    }
+                    break;
+                case 'mine': 
+                    playExplosionSound(1.3);
+                    for(let i=0; i<120; i++) {
+                        particles.push(new Particle(x, height, `hsl(${Math.random()*360},100%,60%)`, {x:(Math.random()-0.5)*20, y:-Math.random()*28 - 10}, 0.94, 0.25));
+                    }
+                    break;
+                default: fireworks.push(new Firework(x, y));
+            }
+        }
 
         function animate() {
-            // SOLUZIONE 3: Pulizia semi-trasparente leggermente più forte
-            ctx.fillStyle = 'rgba(1, 2, 6, 0.25)'; 
+            ctx.fillStyle = 'rgba(1, 2, 10, 0.25)'; 
             ctx.fillRect(0, 0, width, height);
-
             for (let i = fireworks.length - 1; i >= 0; i--) {
                 fireworks[i].update();
-                if (fireworks[i].dead) fireworks.splice(i, 1);
+                if (fireworks[i].dead) { particles.push(...fireworks[i].particles); fireworks.splice(i, 1); }
             }
-
             for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.update();
-                p.draw();
-                
-                // SOLUZIONE 2: Gestione rigorosa e d'emergenza della rimozione
-                if (p.alpha < 0.02) {
-                    // Cancella forzatamente il punto sullo schermo disegnando nero
-                    ctx.globalAlpha = 1;
-                    ctx.fillStyle = '#010206'; 
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size + 1.5, 0, 7); 
-                    ctx.fill();
-                    
-                    particles.splice(i, 1);
-                }
+                particles[i].update(); particles[i].draw();
+                if (particles[i].alpha <= 0) particles.splice(i, 1);
             }
-
-            if (particles.length > 2000) particles.splice(0, particles.length - 2000);
             requestAnimationFrame(animate);
         }
 
-        const handle = (e) => {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const x = e.touches ? e.touches[0].clientX : e.clientX;
-            const y = e.touches ? e.touches[0].clientY : e.clientY;
-            const type = Math.floor(Math.random() * 10);
-            fireworks.push(new Firework(x, y, type, 0.7 + Math.random() * 0.5));
-        };
+        function handleInput(x, y) {
+            if (isWhirlActive) return;
+            const formats = ['shell', 'shell', 'shell', 'battery', 'mine', 'fountain', 'roman_candle', 'final_explosion'];
+            triggerFormat(formats[Math.floor(Math.random() * formats.length)], x, y);
+        }
 
-        canvas.addEventListener('mousedown', handle);
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handle(e); }, {passive: false});
+        canvas.addEventListener('mousedown', (e) => handleInput(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); handleInput(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+
         animate();
     </script>
 </body>
